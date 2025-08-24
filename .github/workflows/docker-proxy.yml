@@ -58,7 +58,7 @@ jobs:
             echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/$name:$tag"
 
             skopeo copy --all docker://docker.io/${image}:${tag} \
-              docker://docker.cnb.cool/github-push/docker/${name}:${tag} \
+              docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
               --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
               --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
           
