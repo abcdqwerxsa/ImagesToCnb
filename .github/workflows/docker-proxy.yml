@@ -55,12 +55,12 @@ jobs:
             default_tag=$(echo "$item" | jq -r '.tag')
             tag=${INPUT_VERSION:-$default_tag}
 
-            echo "Mirroring $image:$tag to docker.cnb.cool/lufei/docker/$name:$tag"
+            echo "Mirroring $image:$tag to docker.cnb.cool/kexi2/docker/$name:$tag"
 
             skopeo copy --all docker://docker.io/${image}:${tag} \
-              docker://docker.cnb.cool/lufei/docker/${name}:${tag} \
+              docker://docker.cnb.cool/kexi2/docker/${name}:${tag} \
               --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
               --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
           
-            echo "::notice title=Image Published::https://docker.cnb.cool/lufei/docker/${name}:${tag}"
+            echo "::notice title=Image Published::https://docker.cnb.cool/kexi2/docker/${name}:${tag}"
           done
