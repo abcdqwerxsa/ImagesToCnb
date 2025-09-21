@@ -17,3 +17,6 @@ images:
   - image: "clickhouse"
     tag: "24.8"
     name: "clickhouse"
+  - image: "n8nio/n8n"
+    tag: "latest"
+    name: "n8n"
