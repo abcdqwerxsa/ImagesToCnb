@@ -20,3 +20,6 @@ images:
   - image: "n8nio/n8n"
     tag: "latest"
     name: "n8n"
+  - image: "hexdolemonai/lemon-runtime-sandbox"
+    tag: "latest"
+    name: "lemon-runtime-sandbox"
