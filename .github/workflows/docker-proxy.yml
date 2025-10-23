@@ -1,30 +1,3 @@
-name: Mirror Docker Images to CNB
-
-on:
-  workflow_dispatch:
-    inputs:
-      name:
-        description: 'Select image to mirror (or leave blank to mirror all)'
-        required: false
-        type: choice
-        options:
-          - ""
-          - vaultwarden
-          - bark-server
-          - elasticsearch
-          - mysql
-          - hyperf
-          - clickhouse
-          - arcane
-      version:
-        description: 'Override tag version'
-        required: false
-        type: string
-  push:
-    paths:
-      - '.github/images.yml'
-    branches: [ 'main' ]
-
 jobs:
   mirror:
     name: >-
@@ -32,22 +5,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
       - name: Mirror images
         env:
           INPUT_NAME: ${{ github.event.inputs.name }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
+          # 设置 shell 选项，遇到错误立即退出
+          set -e
+          
           images=$(yq -o json '.images' ${{ github.workspace }}/.github/images.yml)
 
           if [ -n "$INPUT_NAME" ]; then
-          matrix=$(echo "$images" | jq -c --arg name "$INPUT_NAME" '.[] | select(.name == $name)')
+            matrix=$(echo "$images" | jq -c --arg name "$INPUT_NAME" '.[] | select(.name == $name)')
           else
-          matrix=$(echo "$images" | jq -c '.[]')
+            matrix=$(echo "$images" | jq -c '.[]')
           fi
 
           if [ -z "$matrix" ]; then
-          echo "No matching images found for name: $INPUT_NAME"
-          exit 1
+            echo "::error title=No Matching Images::No matching images found for name: $INPUT_NAME"
+            exit 1
           fi
 
           echo "$matrix" | while read -r item; do
@@ -56,19 +38,19 @@ jobs:
             default_tag=$(echo "$item" | jq -r '.tag')
             tag=${INPUT_VERSION:-$default_tag}
 
-            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/$name:$tag"
+            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
 
             # 为 ghcr.io 镜像添加认证
             if [[ "$image" == ghcr.io/* ]]; then
-              echo "Using GitHub credentials for ghcr.io"
-              # 方法1：使用 GITHUB_TOKEN（推荐）
+              echo "Source is GitHub Container Registry (ghcr.io). Using GitHub token for authentication."
               skopeo copy --all \
+                --src-creds "x:${{ secrets.GITHUB_TOKEN }}" \
                 docker://${image}:${tag} \
                 docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
-                --src-creds "abcdqwerxsa:${{ secrets.gh_TOKEN }} \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             else
-              # 其他镜像使用原有逻辑
+              # 其他镜像（如 Docker Hub）使用原有逻辑
+              echo "Source is a public or Docker Hub registry."
               skopeo copy --all \
                 docker://${image}:${tag} \
                 docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
