@@ -1,3 +1,30 @@
+name: Mirror Docker Images to CNB
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Select image to mirror (or leave blank to mirror all)'
+        required: false
+        type: choice
+        options:
+          - ""
+          - vaultwarden
+          - bark-server
+          - elasticsearch
+          - mysql
+          - hyperf
+          - clickhouse
+          - arcane
+      version:
+        description: 'Override tag version'
+        required: false
+        type: string
+  push:
+    paths:
+      - '.github/images.yml'
+    branches: [ 'main' ]
+
 jobs:
   mirror:
     name: >-
@@ -29,19 +56,21 @@ jobs:
             default_tag=$(echo "$item" | jq -r '.tag')
             tag=${INPUT_VERSION:-$default_tag}
 
-            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
+            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/$name:$tag"
 
-            # --- 新增的逻辑判断 ---
+            # 为 ghcr.io 镜像添加认证
             if [[ "$image" == ghcr.io/* ]]; then
-              echo "Source is GitHub Container Registry (ghcr.io). Using GITHUB_TOKEN for authentication."
-              skopeo copy --all docker://${image}:${tag} \
+              echo "Using GitHub credentials for ghcr.io"
+              # 方法1：使用 GITHUB_TOKEN（推荐）
+              skopeo copy --all \
+                docker://${image}:${tag} \
                 docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
-                --src-creds "x:${{ secrets.GITHUB_TOKEN }}" \
+                --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             else
-              echo "Source is Docker Hub or another public registry. Using DOCKERHUB_TOKEN for authentication."
-              # --- 你原有的逻辑 ---
-              skopeo copy --all docker://${image}:${tag} \
+              # 其他镜像使用原有逻辑
+              skopeo copy --all \
+                docker://${image}:${tag} \
                 docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
                 --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
