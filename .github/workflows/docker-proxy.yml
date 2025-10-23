@@ -1,3 +1,30 @@
+name: Mirror Docker Images to CNB
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Select image to mirror (or leave blank to mirror all)'
+        required: false
+        type: choice
+        options:
+          - ""
+          - vaultwarden
+          - bark-server
+          - elasticsearch
+          - mysql
+          - hyperf
+          - clickhouse
+          - arcane
+      version:
+        description: 'Override tag version'
+        required: false
+        type: string
+  push:
+    paths:
+      - '.github/images.yml'
+    branches: [ 'main' ]
+
 jobs:
   mirror:
     name: >-
@@ -5,11 +32,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Skopeo
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y skopeo
 
       - name: Mirror images
         env:
@@ -38,25 +60,31 @@ jobs:
             default_tag=$(echo "$item" | jq -r '.tag')
             tag=${INPUT_VERSION:-$default_tag}
 
-            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
+            # 根据你的错误日志，目标路径是 docker.cnb.cool/nilpotenter/arcane
+            TARGET_IMAGE="docker.cnb.cool/nilpotenter/${name}:${tag}"
+            echo "Mirroring $image:$tag to $TARGET_IMAGE"
 
             # 为 ghcr.io 镜像添加认证
             if [[ "$image" == ghcr.io/* ]]; then
               echo "Source is GitHub Container Registry (ghcr.io). Using GitHub token for authentication."
-              skopeo copy --all \
+              docker run --rm \
+                ghcr.io/containers/skopeo:latest \
+                copy --all \
                 --src-creds "x:${{ secrets.GITHUB_TOKEN }}" \
                 docker://${image}:${tag} \
-                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                docker://${TARGET_IMAGE} \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             else
               # 其他镜像（如 Docker Hub）使用原有逻辑
               echo "Source is a public or Docker Hub registry."
-              skopeo copy --all \
-                docker://${image}:${tag} \
-                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+              docker run --rm \
+                ghcr.io/containers/skopeo:latest \
+                copy --all \
                 --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+                docker://${image}:${tag} \
+                docker://${TARGET_IMAGE} \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             fi
           
-            echo "::notice title=Image Published::https://docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
+            echo "::notice title=Image Published::https://${TARGET_IMAGE}"
           done
