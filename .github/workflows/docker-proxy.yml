@@ -15,6 +15,7 @@ on:
           - mysql
           - hyperf
           - clickhouse
+          - arcane
       version:
         description: 'Override tag version'
         required: false
@@ -57,21 +58,23 @@ jobs:
 
             echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/$name:$tag"
 
-            # 动态设置源认证凭据
-            SRC_CREDS=""
-            # 如果是 ghcr.io 镜像，使用 GitHub Token
+            # 为 ghcr.io 镜像添加认证
             if [[ "$image" == ghcr.io/* ]]; then
-              SRC_CREDS="--src-creds '${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}'"
-            # 如果是 docker.io 镜像，使用 DockerHub Token
-            elif [[ "$image" == docker.io/* ]] || [[ "$image" != *.* ]]; then
-              SRC_CREDS="--src-creds '${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}'"
+              echo "Using GitHub credentials for ghcr.io"
+              # 方法1：使用 GITHUB_TOKEN（推荐）
+              skopeo copy --all \
+                docker://${image}:${tag} \
+                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
+            else
+              # 其他镜像使用原有逻辑
+              skopeo copy --all \
+                docker://${image}:${tag} \
+                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             fi
-
-            # 执行复制命令
-            skopeo copy --all docker://${image}:${tag} \
-              docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
-              $SRC_CREDS \
-              --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
           
             echo "::notice title=Image Published::https://docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
           done
