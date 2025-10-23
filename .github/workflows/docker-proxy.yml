@@ -65,6 +65,7 @@ jobs:
               skopeo copy --all \
                 docker://${image}:${tag} \
                 docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                --src-creds "abcdqwerxsa:${{ secrets.gh_TOKEN }} \
                 --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
             else
               # 其他镜像使用原有逻辑
