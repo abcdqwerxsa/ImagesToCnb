@@ -26,65 +26,53 @@ on:
     branches: [ 'main' ]
 
 jobs:
-  mirror:
-    name: >-
-      Mirror ${{ github.event.inputs.name || 'All Images' }}${{ github.event.inputs.version && format(' (version: {0})', github.event.inputs.version) || '' }}
+  # 这个 job 用于读取配置并生成一个矩阵
+  prepare-matrix:
+    name: Prepare Matrix
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Mirror images
-        env:
-          INPUT_NAME: ${{ github.event.inputs.name }}
-          INPUT_VERSION: ${{ github.event.inputs.version }}
+      - id: set-matrix
         run: |
-          # 设置 shell 选项，遇到错误立即退出
-          set -e
-          
-          images=$(yq -o json '.images' ${{ github.workspace }}/.github/images.yml)
-
-          if [ -n "$INPUT_NAME" ]; then
-            matrix=$(echo "$images" | jq -c --arg name "$INPUT_NAME" '.[] | select(.name == $name)')
+          # 使用 yq 和 jq 生成 JSON 矩阵
+          if [ -n "${{ github.event.inputs.name }}" ]; then
+            MATRIX=$(yq -o json '.images[] | select(.name == "${{ github.event.inputs.name }}")' ${{ github.workspace }}/.github/images.yml | jq -c '{ "include": [.] }')
           else
-            matrix=$(echo "$images" | jq -c '.[]')
+            MATRIX=$(yq -o json '.images' ${{ github.workspace }}/.github/images.yml | jq -c '{ "include": . }')
           fi
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Generated matrix: $MATRIX"
 
-          if [ -z "$matrix" ]; then
-            echo "::error title=No Matching Images::No matching images found for name: $INPUT_NAME"
-            exit 1
-          fi
-
-          echo "$matrix" | while read -r item; do
-            image=$(echo "$item" | jq -r '.image')
-            name=$(echo "$item" | jq -r '.name')
-            default_tag=$(echo "$item" | jq -r '.tag')
-            tag=${INPUT_VERSION:-$default_tag}
-
-            # 根据你的错误日志，目标路径是 docker.cnb.cool/nilpotenter/arcane
-            TARGET_IMAGE="docker.cnb.cool/nilpotenter/${name}:${tag}"
-            echo "Mirroring $image:$tag to $TARGET_IMAGE"
-
-            # 为 ghcr.io 镜像添加认证
-            if [[ "$image" == ghcr.io/* ]]; then
-              echo "Source is GitHub Container Registry (ghcr.io). Using GitHub token for authentication."
-              docker run --rm \
-                ghcr.io/containers/skopeo:latest \
-                copy --all \
-                --src-creds "x:${{ secrets.GITHUB_TOKEN }}" \
-                docker://${image}:${tag} \
-                docker://${TARGET_IMAGE} \
-                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
-            else
-              # 其他镜像（如 Docker Hub）使用原有逻辑
-              echo "Source is a public or Docker Hub registry."
-              docker run --rm \
-                ghcr.io/containers/skopeo:latest \
-                copy --all \
-                --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
-                docker://${image}:${tag} \
-                docker://${TARGET_IMAGE} \
-                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
-            fi
+  # 这个 job 执行实际的镜像同步
+  mirror:
+    name: Mirror ${{ matrix.name }}
+    needs: prepare-matrix
+    if: needs.prepare-matrix.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+      fail-fast: false # 如果一个镜像失败，继续同步其他的
+    steps:
+      - name: Mirror Image
+        env:
+          # 使用 workflow_dispatch 的输入覆盖 tag，如果提供了的话
+          TAG_TO_MIRROR: ${{ github.event.inputs.version || matrix.tag }}
+        run: |
+          echo "Starting mirror for ${{ matrix.image }}:${{ env.TAG_TO_MIRROR }}"
           
-            echo "::notice title=Image Published::https://${TARGET_IMAGE}"
-          done
+          # --- 关键修复 ---
+          # 使用 --network=host 并确保不挂载任何可能污染配置的目录
+          # 这将强制 skopeo 容器使用其纯净的内置配置
+          # --network=host 有时能解决复杂的网络/注册表解析问题
+          # --- 关键修复 ---
+          docker run --rm --network=host \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            ghcr.io/containers/skopeo:latest \
+            copy --all --dest-tls-verify=false \
+            docker://${{ matrix.image }}:${{ env.TAG_TO_MIRROR }} \
+            docker://docker.cnb.cool/nilpotenter/${{ matrix.name }}:${{ env.TAG_TO_MIRROR }} \
+            --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
+
+          echo "::notice title=Success::Image mirrored to docker.cnb.cool/nilpotenter/${{ matrix.name }}:${{ env.TAG_TO_MIRROR }}"
