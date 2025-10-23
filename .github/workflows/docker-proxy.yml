@@ -57,9 +57,20 @@ jobs:
 
             echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/$name:$tag"
 
-            skopeo copy --all docker://docker/${image}:${tag} \
+            # 动态设置源认证凭据
+            SRC_CREDS=""
+            # 如果是 ghcr.io 镜像，使用 GitHub Token
+            if [[ "$image" == ghcr.io/* ]]; then
+              SRC_CREDS="--src-creds '${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}'"
+            # 如果是 docker.io 镜像，使用 DockerHub Token
+            elif [[ "$image" == docker.io/* ]] || [[ "$image" != *.* ]]; then
+              SRC_CREDS="--src-creds '${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}'"
+            fi
+
+            # 执行复制命令
+            skopeo copy --all docker://${image}:${tag} \
               docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
-              --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+              $SRC_CREDS \
               --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
           
             echo "::notice title=Image Published::https://docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
