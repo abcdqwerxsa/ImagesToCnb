@@ -1,106 +1,51 @@
-name: Mirror Docker Images to CNB
-
-on:
-  workflow_dispatch:
-    inputs:
-      name:
-        description: 'Select image to mirror (or leave blank to mirror all)'
-        required: false
-        type: choice
-        options:
-          - ""
-          - vaultwarden
-          - bark-server
-          - elasticsearch
-          - mysql
-          - hyperf
-          - clickhouse
-          - arcane
-      version:
-        description: 'Override tag version'
-        required: false
-        type: string
-  push:
-    paths:
-      - '.github/images.yml'
-    branches: [ 'main' ]
-
 jobs:
-  # 这个 job 用于读取配置并生成一个矩阵
-  prepare-matrix:
-    name: Prepare Matrix
+  mirror:
+    name: >-
+      Mirror ${{ github.event.inputs.name || 'All Images' }}${{ github.event.inputs.version && format(' (version: {0})', github.event.inputs.version) || '' }}
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      - id: set-matrix
-        run: |
-          if [ -n "${{ github.event.inputs.name }}" ]; then
-            MATRIX=$(yq -o json '.images[] | select(.name == "${{ github.event.inputs.name }}")' ${{ github.workspace }}/.github/images.yml | jq -c '{ "include": [.] }')
-          else
-            MATRIX=$(yq -o json '.images' ${{ github.workspace }}/.github/images.yml | jq -c '{ "include": . }')
-          fi
-          # 如果没有匹配项，输出一个空的矩阵，mirror job 将被跳过
-          if [ "$MATRIX" == '{"include":[]}' ]; then
-            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
-          else
-            echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          fi
-          echo "Generated matrix: $MATRIX"
-
-  # 这个 job 执行实际的镜像同步
-  mirror:
-    name: Mirror ${{ matrix.name }}
-    needs: prepare-matrix
-    # 只有当矩阵不为空时才运行
-    if: needs.prepare-matrix.outputs.matrix != '' && needs.prepare-matrix.outputs.matrix != '{"include":[]}'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
-      fail-fast: false
-    steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        if: startsWith(matrix.image, 'ghcr.io/')
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Log in to Docker Hub
-        if: startsWith(matrix.image, 'docker.io/') || ! (startsWith(matrix.image, 'ghcr.io/') || contains(matrix.image, '.'))
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to CNB Registry
-        uses: docker/login-action@v3
-        with:
-          registry: docker.cnb.cool
-          username: cnb
-          password: ${{ secrets.CNB_DOCKER_TOKEN }}
-
-      - name: Pull, Tag and Push Image
+      - name: Mirror images
         env:
-          TAG_TO_MIRROR: ${{ github.event.inputs.version || matrix.tag }}
+          INPUT_NAME: ${{ github.event.inputs.name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          SOURCE_IMAGE="${{ matrix.image }}:${{ env.TAG_TO_MIRROR }}"
-          TARGET_IMAGE="docker.cnb.cool/nilpotenter/${{ matrix.name }}:${{ env.TAG_TO_MIRROR }}"
+          images=$(yq -o json '.images' ${{ github.workspace }}/.github/images.yml)
 
-          echo "Mirroring $SOURCE_IMAGE to $TARGET_IMAGE"
+          if [ -n "$INPUT_NAME" ]; then
+          matrix=$(echo "$images" | jq -c --arg name "$INPUT_NAME" '.[] | select(.name == $name)')
+          else
+          matrix=$(echo "$images" | jq -c '.[]')
+          fi
 
-          # 1. 拉取源镜像
-          docker pull "$SOURCE_IMAGE"
+          if [ -z "$matrix" ]; then
+          echo "No matching images found for name: $INPUT_NAME"
+          exit 1
+          fi
 
-          # 2. 为镜像打上目标仓库的标签
-          docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+          echo "$matrix" | while read -r item; do
+            image=$(echo "$item" | jq -r '.image')
+            name=$(echo "$item" | jq -r '.name')
+            default_tag=$(echo "$item" | jq -r '.tag')
+            tag=${INPUT_VERSION:-$default_tag}
 
-          # 3. 推送镜像到目标仓库
-          docker push "$TARGET_IMAGE"
+            echo "Mirroring $image:$tag to docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
 
-          echo "::notice title=Success::Image mirrored to $TARGET_IMAGE"
+            # --- 新增的逻辑判断 ---
+            if [[ "$image" == ghcr.io/* ]]; then
+              echo "Source is GitHub Container Registry (ghcr.io). Using GITHUB_TOKEN for authentication."
+              skopeo copy --all docker://${image}:${tag} \
+                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                --src-creds "x:${{ secrets.GITHUB_TOKEN }}" \
+                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
+            else
+              echo "Source is Docker Hub or another public registry. Using DOCKERHUB_TOKEN for authentication."
+              # --- 你原有的逻辑 ---
+              skopeo copy --all docker://${image}:${tag} \
+                docker://docker.cnb.cool/nilpotenter/docker/${name}:${tag} \
+                --src-creds "${{ secrets.DOCKERHUB_USERNAME }}:${{ secrets.DOCKERHUB_TOKEN }}" \
+                --dest-creds "cnb:${{ secrets.CNB_DOCKER_TOKEN }}"
+            fi
+          
+            echo "::notice title=Image Published::https://docker.cnb.cool/nilpotenter/docker/${name}:${tag}"
+          done
