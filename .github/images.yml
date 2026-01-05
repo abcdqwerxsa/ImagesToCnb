@@ -1,13 +1,7 @@
 images:
-  - image: "rancher/rancher"
-    tag: "v2.13.1"
-    name: "rancher"
-  - image: "rancher/mirrored-bci-micro"
-    tag: "15.6.24.2"
-    name: "mirrored-bci-micro"
-  - image: "rancher/shell"
-    tag: "v0.6.1"
-    name: "shell"
+  - image: "ingress-nginx/kube-webhook-certgen"
+    tag: "v1.6.5"
+    name: "kube-webhook-certgen"
   
 
 
