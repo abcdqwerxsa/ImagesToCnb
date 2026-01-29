@@ -1,7 +1,10 @@
 images:
-  - image: "docker.io/volcanosh/vc-webhook-manager"
+  - image: "docker.io/volcanosh/vc-controller-manager"
     tag: "latest"
-    name: "vc-webhook-manager"
+    name: "vc-controller-manager"
+  - image: "docker.io/volcanosh/vc-scheduler"
+    tag: "latest"
+    name: "vc-scheduler"
 
   
 
