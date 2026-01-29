@@ -1,7 +1,8 @@
 images:
-  - image: "ingress-nginx/kube-webhook-certgen"
-    tag: "v1.6.5"
-    name: "kube-webhook-certgen"
+  - image: "docker.io/volcanosh/vc-webhook-manager"
+    tag: "latest"
+    name: "vc-webhook-manager"
+
   
 
 
