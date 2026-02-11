@@ -1,10 +1,8 @@
 images:
-  - image: "docker.io/volcanosh/vc-controller-manager"
+  - image: "heartexlabs/label-studio"
     tag: "latest"
-    name: "vc-controller-manager"
-  - image: "docker.io/volcanosh/vc-scheduler"
-    tag: "latest"
-    name: "vc-scheduler"
+    name: "label-studio"
+
 
   
 
