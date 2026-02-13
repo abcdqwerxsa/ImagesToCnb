@@ -1,7 +1,7 @@
 images:
-  - image: "heartexlabs/label-studio"
+  - image: "rustfs/rustfs"
     tag: "latest"
-    name: "label-studio"
+    name: "rustfs"
 
 
   
