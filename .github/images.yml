@@ -1,10 +1,25 @@
 images:
-  - image: "rustfs/rustfs"
-    tag: "latest"
-    name: "rustfs"
-
-
-  
-
-
-
+  - image: "juicedata/juicefs-csi-driver"
+    tag: "v0.31.1"
+    name: "juicefs-csi-driver"
+  - image: "juicedata/csi-dashboard"
+    tag: "v0.31.1"
+    name: "csi-dashboard"
+  - image: "registry.k8s.io/sig-storage/livenessprobe"
+    tag: "v2.12.0"
+    name: "livenessprobe"
+  - image: "registry.k8s.io/sig-storage/csi-node-driver-registrar"
+    tag: "v2.9.0"
+    name: "csi-node-driver-registrar"
+  - image: "registry.k8s.io/sig-storage/csi-provisioner"
+    tag: "v2.2.2"
+    name: "csi-provisioner"
+  - image: "registry.k8s.io/sig-storage/csi-resizer"
+    tag: "v1.9.0"
+    name: "csi-resizer"
+  - image: "registry.k8s.io/sig-storage/csi-snapshotter"
+    tag: "v8.4.0"
+    name: "csi-snapshotter"
+  - image: "redis"
+    tag: "7-alpine"
+    name: "redis"
