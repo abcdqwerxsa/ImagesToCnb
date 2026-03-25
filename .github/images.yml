@@ -1,4 +1,7 @@
 images:
-  - image: "ghcr.io/dragonflydb/dragonfly"
-    tag: "v1.37.0"
+  - image: "nats"
+    tag: "2.10-alpine"
     name: "dragonfly"
+  - image: "jaegertracing/all-in-one"
+    tag: "1.53"
+    name: "all-in-one"
