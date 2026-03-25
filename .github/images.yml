@@ -1,4 +1,4 @@
 images:
   - image: "docker.dragonflydb.io/dragonflydb/dragonfly"
-    tag: "v1.37.1"
+    tag: ""
     name: "dragonfly"
