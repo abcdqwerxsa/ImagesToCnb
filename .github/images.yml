@@ -1,7 +1,7 @@
 images:
   - image: "nats"
     tag: "2.10-alpine"
+    name: "nats"
+  - image: "ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
+    tag: "v1.37.0"
     name: "dragonfly"
-  - image: "jaegertracing/all-in-one"
-    tag: "1.53"
-    name: "all-in-one"
