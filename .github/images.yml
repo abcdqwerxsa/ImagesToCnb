@@ -1,7 +1,4 @@
 images:
-  - image: "nats"
-    tag: "2.10-alpine"
-    name: "nats"
-  - image: "ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
-    tag: "v1.37.0"
+  - image: "docker.dragonflydb.io/dragonflydb/dragonfly"
+    tag: "v1.37.1"
     name: "dragonfly"
