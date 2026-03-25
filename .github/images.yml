@@ -1,4 +1,4 @@
 images:
-  - image: "docker.dragonflydb.io/dragonflydb/dragonfly"
-    tag: "latest"
+  - image: "ghcr.io/dragonflydb/dragonfly/helm/dragonfly"
+    tag: "v1.37.0"
     name: "dragonfly"
