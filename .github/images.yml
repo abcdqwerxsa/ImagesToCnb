@@ -1,4 +1,4 @@
 images:
-  - image: "kevinho/clawfeed"
+  - image: "calciumion/new-api"
     tag: "latest"
-    name: "clawfeed"
+    name: "new-api"
